@@ -77,14 +77,46 @@ end
 
 
 local eventLogsRegistered = {}
+local canRegisterLogInCache = true
 
 AddEventHandler('registerEventLog', function(eventName, sourceId, eventArgs)
-	table.insert(eventLogsRegistered, {
-		eventName = eventName, 
-		sourceId = sourceId, 
-		eventArgs = eventArgs,
-        timestamp = os.time()
-	})
+    if canRegisterLogInCache then
+        table.insert(eventLogsRegistered, {
+            eventName = eventName, 
+            sourceId = sourceId, 
+            eventArgs = eventArgs,
+            timestamp = os.time()
+        })
+    end
+end)
+
+RegisterCommand('stoplogevent', function(source)
+    if source == 0 then
+        canRegisterLogInCache = false
+        print('Logs de eventos parados com sucesso!')
+    end
+end)
+
+RegisterCommand('startlogevent', function(source)
+    if source == 0 then
+        canRegisterLogInCache = true
+        print('Logs de eventos iniciados com sucesso!')
+    end
+end)
+
+RegisterCommand('clearlogevent', function(source)
+    if source == 0 then
+        eventLogsRegistered = {}
+        collectgarbage("collect")
+        print('Logs de eventos limpos com sucesso!')
+    end
+end)
+
+RegisterCommand('collectlogevent', function(source)
+    if source == 0 then
+        collectgarbage("collect")
+        print('Coleta de lixo realizada com sucesso!')
+    end
 end)
 
 RegisterCommand('logevent', function(source)
