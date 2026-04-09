@@ -1,75 +1,93 @@
-# 🛠 Event Logger: Sua Solução para Depuração de Eventos no FiveM 🛠
+# Event Logger (Fork)
 
----
+Fork do [event_logger](https://github.com/SuricatoX/event_logger) original do SuricatoX com correções de compatibilidade para versões recentes do FiveM. O projeto original apresentava problemas que impediam o funcionamento, então criei este fork há alguns meses para corrigir e decidi publicar para ajudar outras pessoas que enfrentem os mesmos problemas.
 
-**Event Logger** é uma ferramenta robusta, desenvolvida com o intuito de auxiliar administradores e desenvolvedores de servidores FiveM a identificar e solucionar problemas associados a eventos que podem estar comprometendo a estabilidade e desempenho do servidor. Este script é focado em eventos que vão do servidor para o cliente (S > C), conhecidos por seu alto custo de processamento e impacto significativo na rede.
+Correções aplicadas neste fork:
+- Substituição de `io.open`/`os.execute` por `SaveResourceFile` e `LoadResourceFile` (nativos do FiveM)
+- Remoção de `package.config`, `os.mkdir` e `os.execute` (indisponíveis no sandbox)
+- Remoção da subpasta `eventLog/` (incompatível com `SaveResourceFile`)
+- Remoção de funções obsoletas (`createFile`, `createFolder`, `openFile`, `writeToFile`, `closeFile`)
 
-## ✨ Destaques e Funcionalidades
+Ferramenta de depuração para servidores FiveM que monitora eventos Server > Client (S > C), identificando os que mais impactam o desempenho e a rede do servidor.
 
-- **Análise Específica de Eventos S > C**: Monitoramento direcionado para eventos que transitam do servidor para o cliente.
-- **Identificação Precisa**: Localiza eventos disparados em excesso, facilitando a resolução rápida.
-- **Logs Detalhados**: Registros minuciosos para análise aprofundada.
-- **Filtragem e Análise de Eventos**: Remova eventos específicos das logs e identifique os que mais pesam no servidor.
+## Quando usar
 
-## ⚠ Alertas: Quando Utilizar o Event Logger?
-
-Fique atento aos seguintes sinais no seu servidor, que indicam que o Event Logger pode ser uma ferramenta crucial:
+Utilize quando encontrar os seguintes avisos no console do servidor:
 
 - `Network thread hitch warning`
 - `Sync thread hitch warning`
 
-Estas mensagens são sintomas claros de que algo não está certo e uma investigação é necessária.
+## Requisitos
 
-## 🚀 Como Implementar
+- FiveM server build atualizado (compatível com `fx_version 'cerulean'` e `lua54`)
+- Acesso ao console do servidor (cmd / txAdmin)
 
-### 1️⃣ Instalação e Preparação
+## Instalação
 
-Primeiramente, é necessário preparar o terreno instalando as dependências necessárias em todos os recursos do servidor.
+1. Coloque a pasta `event_logger` dentro da pasta `resources` do seu servidor.
+2. Adicione `ensure event_logger` no `server.cfg`.
+3. No console do servidor, execute:
 
-```sh
+```
 /loginstall
 ```
 
-- **Execute no terminal do servidor**: Este comando configura tudo para você, garantindo que o Logger opere em plena capacidade.
+Isso injeta a dependência `log_register.lua` em todos os resources automaticamente. Após isso, reinicie o servidor.
 
-### 2️⃣ Limpeza Pós-Análise
+## Desinstalação
 
-Após finalizar sua investigação e identificar os culpados, não se esqueça de fazer uma limpeza:
-
-```sh
+```
 /loguninstall
 ```
 
-- **Terminal do Servidor**: Um comando rápido aqui e você remove todas as dependências, deixando seu servidor limpo e ágil novamente.
+Remove a dependência de todos os resources. Reinicie o servidor após executar.
 
-### 3️⃣ Capturando e Analisando Logs
+## Comandos
 
-Quando os primeiros sinais de problemas aparecerem, aqui está o que você precisa fazer:
+| Comando | Descrição |
+|---|---|
+| `/loginstall` | Instala as dependências do logger em todos os resources |
+| `/loguninstall` | Remove as dependências do logger de todos os resources |
+| `/logevent` | Gera um arquivo `.log` com os eventos dos últimos 10 minutos |
+| `/logeventfull` | Gera um arquivo `.log` com todos os eventos desde o start do servidor |
+| `/logfilter [arquivo] [evento]` | Gera uma log filtrada removendo um evento específico |
+| `/loganalyze [arquivo]` | Analisa a log e classifica eventos por nível de risco |
+| `/stoplogevent` | Para o registro de logs |
+| `/startlogevent` | Retoma o registro de logs |
+| `/clearlogevent` | Limpa os logs armazenados em memória |
+| `/collectlogevent` | Força coleta de lixo (garbage collector) |
+| `/loghelp` | Lista todos os comandos disponíveis |
 
-1. **Dispare o Comando**: `/logevent` diretamente no terminal.
-   - Isso gerará um arquivo .log com todos os eventos dos últimos 10 minutos.
-2. **Vá até `server-data`**: Dentro, localize a pasta `logEvent` e abra o documento .log que foi gerado.
-3. **Hora da Análise**: Mergulhe nos dados, identifique os eventos que estão pesando mais e tome as medidas necessárias.
+## Análise de eventos
 
-Os logs serão salvos na pasta `logEvent` dentro de `server-data`.
+Após gerar uma log com `/logevent` ou `/logeventfull`, use `/loganalyze [nome-do-arquivo.log]` para iniciar a análise. O sistema classifica os eventos em três níveis:
 
-## 🎥 Tutorial em Vídeo
+| Nível | Descrição |
+|---|---|
+| **low** | Eventos que disparam de forma excessiva (loop) |
+| **mid** | Eventos que enviam dados pesados (muitos bytes) para todos os jogadores |
+| **high** | Eventos que combinam loop excessivo com dados pesados para todos — risco máximo |
 
-Para ajudar você a começar a usar o Event Logger e entender todas as suas funcionalidades, confira este tutorial em vídeo:
+Após a análise, use os comandos interativos:
 
-<a href="https://www.youtube.com/watch?v=gLH15IbZnIs" target="_blank">![Tutorial: Como Usar o Event Logger](https://img.youtube.com/vi/gLH15IbZnIs/0.jpg)</a>
+| Comando | Descrição |
+|---|---|
+| `/result low` | Lista eventos de baixo risco |
+| `/result mid` | Lista eventos de alto risco |
+| `/result high` | Lista eventos de risco máximo |
+| `/args` | Mostra argumentos do evento atual (limitado a 80 chars) |
+| `/args 1` | Mostra argumentos completos do evento atual |
+| `/next` | Avança para o próximo evento na lista |
 
+## Estrutura dos logs
 
-## 💬 Suporte e Comunidade
+Cada evento registrado contém:
 
-Precisa de ajuda? Tem perguntas? Junte-se à nossa comunidade e vamos resolver isso juntos!
+```
+[EVENT_NAME]: nome_do_evento
+[SOURCE_TRIGGERED]: id_do_source
+[BYTES]: tamanho_em_bytes
+[DATA_ARGS]: argumentos_do_evento_em_json
+```
 
----
-
-🎉 **Salvamos o seu servidor?** Se o Event Logger foi a solução que você precisava, estamos aqui para comemorar a vitória com você! 🎉
-
-📣 **Espalhe a Palavra**: Se você achou essa ferramenta útil, compartilhe com outros administradores e desenvolvedores!
-
-🤝 **Estamos Juntos Nessa**: A comunidade FiveM é forte, e com ferramentas como o Event Logger, fica ainda mais forte!
-
----
+Os arquivos são salvos na pasta raiz do resource `event_logger/` (ex: `log-1775766089.log`).

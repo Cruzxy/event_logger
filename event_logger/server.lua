@@ -2,79 +2,26 @@ local function defineScriptLogName()
 	return os.time()
 end
 
-local logFileName = 'eventLog/log-'..defineScriptLogName()
+local logFileName = 'log-'..defineScriptLogName()
 
--- Function to create an empty file
-local function createFile(fileName)
-    local file, error = io.open(fileName, "w")
-    if not file then
-        print("Error creating file:", error)
-        return nil
-    end
-    file:close()
-    print("File created successfully:", fileName)
-end
 
-function createFolder(folderPath)
-    local success, _, _, _ = os.execute("if not exist \"" .. folderPath .. "\" mkdir \"" .. folderPath .. "\"")
-    if success then
-        print("Pasta criada com sucesso ou já existia.")
-    else
-        print("Falha ao criar pasta.")
-    end
-end
 
--- Function to open a file with the specified mode
-local function openFile(fileName, mode)
-    local file, error = io.open(fileName, mode)
-    if not file then
-        print("Error opening file:", error)
-        return nil
-    end
-    return file
-end
 
--- Function to write text to a file with a newline at the end
-local function writeToFile(file, text)
-    if file then
-        file:write(text .. "\n")
-    else
-        print("File not provided for writing.")
-    end
-end
-
--- Function to close a file
-local function closeFile(file)
-    if file then
-        file:close()
-    else
-        print("File not provided for closing.")
-    end
-end
-
--- Main function to append text to a file
 local function appendTextToFile(fileName, text)
-    local file = openFile(fileName, "a")
-    if not file then return end
-    
-    writeToFile(file, text)
-    closeFile(file)
+    local resName = GetCurrentResourceName()
+    local existing = LoadResourceFile(resName, fileName) or ""
+    SaveResourceFile(resName, fileName, existing .. text .. "\n", -1)
 end
 
--- Function to get the content of a file
 local function getFileData(fileName)
-    local file, err = io.open(fileName, "r")
-
-    if not file then
-        error("Error reading file:" .. tostring(err))
+    local resName = GetCurrentResourceName()
+    local content = LoadResourceFile(resName, fileName)
+    if not content then
+        error("Error reading file: " .. fileName)
         return nil
     end
-
-    local content = file:read("*a") -- read the whole file
-    file:close()
     return content
 end
-
 
 local eventLogsRegistered = {}
 local canRegisterLogInCache = true
@@ -121,10 +68,9 @@ end)
 
 RegisterCommand('logevent', function(source)
 	if source == 0 then
-		print('IniciIando registro de logs')
+		print('Iniciando registro de logs')
 		print('Isso pode demorar um pouco...')
 		print('Há um total de ' .. #eventLogsRegistered .. ' logs para serem registradas!')
-		createFolder('eventLog')
 		registerLogsInCacheOnSystem(true)
         print('Arquivo: "' ..  logFileName .. '.log' .. '" criado com sucesso!')
 	end
@@ -132,10 +78,9 @@ end)
 
 RegisterCommand('logeventfull', function(source)
 	if source == 0 then
-		print('IniciIando registro de logs')
+		print('Iniciando registro de logs')
 		print('Isso pode demorar um pouco...')
 		print('Há um total de ' .. #eventLogsRegistered .. ' logs para serem registradas!')
-		createFolder('eventLog')
 		registerLogsInCacheOnSystem(false)
         print('Arquivo: "' ..  logFileName .. '.log' .. '" criado com sucesso!')
 	end
@@ -170,7 +115,7 @@ end
 
 function getSizeInBytes(data)
     if type(data) == "number" then
-        return #string.pack("f", data)
+        return 8
     elseif type(data) == "string" then
         return #data
     elseif type(data) == "table" then
@@ -183,7 +128,7 @@ function getSizeInBytes(data)
         end
         return totalSize
     else
-        return nil -- Tipo não suportado
+        return nil
     end
 end
 
@@ -195,131 +140,13 @@ local function hasPermission(source)
     return source == 0
 end
 
-function listAllResourcePaths()
-    local resourcePaths = {}
-    local numResources = GetNumResources()
-
-    for i = 0, numResources - 1 do
-        local resourceName = GetResourceByFindIndex(i)
-        local resourcePath = GetResourcePath(resourceName)
-
-		resourcePath = resourcePath:gsub("//", "/")
-
-        resourcePaths[resourceName] = resourcePath
-    end
-
-    return resourcePaths
-end
-
-local function updateFxManifest(folder)
-    local function updateFile(filePath, addLine)
-        local file = io.open(filePath, "r")
-        if not file then
-            print(filePath .. " não encontrado em " .. folder)
-            return false
-        end
-
-        local content = file:read("*a")
-        file:close()
-
-        -- Verifica se a linha já existe antes de adicionar
-        if not content:find(addLine, 1, true) then
-            content = addLine .. "\n" .. content
-
-            file = io.open(filePath, "w")
-            if file then
-                file:write(content)
-                file:close()
-                print(filePath .. " atualizado em " .. folder)
-                return true
-            else
-                print("Erro ao abrir " .. filePath .. " para escrita.")
-                return false
-            end
-        else
-            print(filePath .. " já está atualizado em " .. folder)
-            return true
-        end
-    end
-
-    local addLine = 'server_script "@event_logger/log_register.lua"'
-    local updatedFxmanifest = updateFile(folder .. "/fxmanifest.lua", addLine)
-    local updatedResource = updateFile(folder .. "/__resource.lua", addLine)
-
-    return updatedFxmanifest or updatedResource
-end
-
-RegisterCommand("loginstall", function(source, args, rawCommand)
-    if not hasPermission(source) then
-        print("Você não tem permissão para usar esse comando.")
-        return
-    end
-
-    local resourcePaths = listAllResourcePaths()
-    
-    for resourceName, resourcePath in pairs(resourcePaths) do
-        updateFxManifest(resourcePath)
-    end
-end, false)
-
-local function removeTextFromManifest(folder)
-    local function removeTextFromFile(filePath)
-        local file = io.open(filePath, "r")
-        if not file then
-            print(filePath .. " não encontrado em " .. folder)
-            return false
-        end
-
-        local content = file:read("*a")
-        file:close()
-
-        local pattern = 'server_script "@event_logger/log_register.lua"\n'
-        if content:find(pattern, 1, true) then
-            content = content:gsub(pattern, "")
-
-            file = io.open(filePath, "w")
-            if file then
-                file:write(content)
-                file:close()
-                print("Texto removido de " .. filePath .. " em " .. folder)
-                return true
-            else
-                print("Erro ao abrir " .. filePath .. " para escrita.")
-                return false
-            end
-        else
-            print("Texto não encontrado em " .. filePath .. " em " .. folder)
-            return false
-        end
-    end
-
-    local removedFromFxmanifest = removeTextFromFile(folder .. "/fxmanifest.lua")
-    local removedFromResource = removeTextFromFile(folder .. "/__resource.lua")
-
-    return removedFromFxmanifest or removedFromResource
-end
-
-
-RegisterCommand("loguninstall", function(source, args, rawCommand)
-    if not hasPermission(source) then
-        print("Você não tem permissão para usar esse comando.")
-        return
-    end
-
-    local resourcePaths = listAllResourcePaths()
-    
-    for resourceName, resourcePath in pairs(resourcePaths) do
-        removeTextFromManifest(resourcePath)
-    end
-end, false)
-
 function removeEventEntries(inputStr, eventToRemove)
     local lines = {}
     local skip = 0
 
-    for line in inputStr:gmatch("([^\r\n]+)") do  -- Modificado para também capturar linhas vazias
-        if line:find('%[EVENT_NAME%]: rtx_tv:UpdateRoutingBucketClient') then
-            skip = 4 -- incluindo a linha atual e as próximas 3
+    for line in inputStr:gmatch("([^\r\n]+)") do  
+        if line:find(eventToRemove, 1, true) then
+            skip = 4 
         end
 
         if line:find('%[DATA%-ARGS%]:') then
@@ -336,17 +163,15 @@ function removeEventEntries(inputStr, eventToRemove)
     return table.concat(lines, "\n")
 end
 
--- /logfilter [filename] [event-to-remove]
 RegisterCommand('logfilter', function(source, args)
     if not hasPermission(source) then
         return
     end
 
-    local couldLoad, fileData = pcall(getFileData, 'eventLog/' .. tostring(args[1]))
+    local couldLoad, fileData = pcall(getFileData, tostring(args[1]))
 
     if couldLoad and args[2] then
         local filteredLog = removeEventEntries(fileData, '%[EVENT_NAME%]: ' .. args[2])
-        createFolder('eventLog')
 
         local filteredFileName = logFileName .. '-filter-' .. os.time() .. '.log'
         appendTextToFile(filteredFileName, filteredLog)
@@ -507,172 +332,95 @@ local function defineWarningEventsAndNotify(logsTabled)
     print('[EVENT_LOGGER] [ALTO RISCO DE PERIGO] ' .. #bigGlobalEvents .. ' tipos eventos encontrados que triggam dados MUITO PESADOS (alta quantia de bytes) para TODOS OS JOGADORES')
     print('[EVENT_LOGGER] [RISCO MÁXIMO DE PERIGO] ' .. #killerEvents .. ' tipos de eventos que triggam de forma excessiva e ALTAMENTE PESADA para TODOS OS JOGADORES')
 
+    local currentEventList = nil
+    local currentEventIndex = 0
+    local awaitingNext = nil
 
-    local function listLowRiskEvents()
-        local filteredLoopedEvents = filterLoopedEvents(loopedEvents)
-        print('[EVENT_LOGGER] Lista de eventos de baixo risco')
-        for index, eventPack in pairs(filteredLoopedEvents) do
-            print(eventPack[1].EVENT_NAME)
-
-            local function seeEventsArguments(showFullArguments)
-                print('[EVENT_LOGGER] getting arguments ' .. eventPack[1].EVENT_NAME)
-                
-                table.sort(eventPack, function(a,b)
-                    if a.SOURCE_TRIGGERED == -1 and b.SOURCE_TRIGGERED == -1 then
-                        return false
-                    elseif a.SOURCE_TRIGGERED == -1 then
-                        return true
-                    else
-                        return a.SOURCE_TRIGGERED < b.SOURCE_TRIGGERED
-                    end
-                end)
-                
-                for _, eventInfo in pairs(eventPack) do
-                    local arguments = eventInfo['DATA_ARGS']
-                    if not showFullArguments then
-                        arguments = trunkString(arguments)
-                    end
-
-                    print('[ARGS] ' .. arguments .. '\n[SOURCE_TARGET] ' .. eventInfo.SOURCE_TRIGGERED)
-                end
-            end
-
-            RegisterCommand('args', function(source, args)
-                if not hasPermission(source) then
-                    return
-                end
-
-                if args[1] then
-                    seeEventsArguments(true)
-                else
-                    seeEventsArguments(false)
-                end
-                print('/next - Para ir para o próximo evento')
-            end)
-            print('[EVENT_LOGGER] Para ver os argumentos desses eventos de forma mais detalhada:')
-            print('[EVENT_LOGGER] /args - para ver or argumentos limitados a 80 caracteres (para evitar spam)')
-            print('[EVENT_LOGGER] /args 1 - para ver os argumentos de forma completa (sem limite)')
-            print('[AVISO] Cuidado ao ativar a opção 1! Pode deixar a análise ilegível!')
-
-            local p = promise.new()
-
-            RegisterCommand('next', function(source, args)
-                if not hasPermission(source) then
-                    return 
-                end
-
-                p:resolve()
-            end)
-            print('/next - Para ir para o próximo evento')
-
-            Citizen.Await(p)
+    local function showCurrentEvent()
+        if not currentEventList or currentEventIndex > #currentEventList then
+            print('[EVENT_LOGGER] Não tem mais eventos!')
+            currentEventList = nil
+            return
         end
-        RegisterCommand('next', function(source, args)
-            print('Não tem mais eventos!')
-        end)
+        local eventPack = currentEventList[currentEventIndex]
+        print('[' .. currentEventIndex .. '/' .. #currentEventList .. '] ' .. eventPack[1].EVENT_NAME)
+        print('[EVENT_LOGGER] /args - ver argumentos (limitado a 80 chars)')
+        print('[EVENT_LOGGER] /args 1 - ver argumentos completos')
+        print('/next - próximo evento')
     end
 
-    local function listMidRiskEvents()
-        print('[EVENT_LOGGER] Lista de eventos de alto risco elevado')
-        for index, eventPack in pairs(bigGlobalEvents) do
-            print(eventPack[1].EVENT_NAME)
-            
-            local function seeEventsArguments(showFullArguments)
-                print('[EVENT_LOGGER] getting arguments ' .. eventPack[1].EVENT_NAME)
+    local function seeEventsArguments(eventPack, showFullArguments)
+        print('[EVENT_LOGGER] getting arguments ' .. eventPack[1].EVENT_NAME)
 
-                for _, eventInfo in pairs(eventPack) do
-                    local arguments = eventInfo['DATA_ARGS']
-
-                    if not showFullArguments then
-                        arguments = trunkString(arguments)
-                    end
-
-                    print('[ARGS] ' .. arguments .. '\n[SOURCE_TARGET] ' .. eventInfo.SOURCE_TRIGGERED)
-                end
-
+        table.sort(eventPack, function(a,b)
+            if a.SOURCE_TRIGGERED == -1 and b.SOURCE_TRIGGERED == -1 then
+                return false
+            elseif a.SOURCE_TRIGGERED == -1 then
+                return true
+            else
+                return a.SOURCE_TRIGGERED < b.SOURCE_TRIGGERED
             end
-
-            RegisterCommand('args', function(source, args)
-                if not hasPermission(source) then
-                    return
-                end
-
-                if args[1] then
-                    seeEventsArguments(true)
-                else
-                    seeEventsArguments(false)
-                end
-                print('/next - Para ir para o próximo evento')
-            end)
-            print('[EVENT_LOGGER] Para ver os argumentos desses eventos de forma mais detalhada:')
-            print('[EVENT_LOGGER] /args - para ver or argumentos limitados a 80 caracteres (para evitar spam)')
-            print('[EVENT_LOGGER] /args 1 - para ver os argumentos de forma completa (sem limite)')
-            print('[AVISO] Cuidado ao ativar a opção 1! Pode deixar a análise ilegível!')
-
-        end
-        RegisterCommand('next', function(source, args)
-            print('Não tem mais eventos!')
         end)
+
+        for _, eventInfo in pairs(eventPack) do
+            local arguments = eventInfo['DATA_ARGS']
+            if not showFullArguments then
+                arguments = trunkString(arguments)
+            end
+            print('[ARGS] ' .. arguments .. '\n[SOURCE_TARGET] ' .. eventInfo.SOURCE_TRIGGERED)
+        end
     end
 
-    local function listHighRiskEvents()
-        print('[EVENT_LOGGER] Lista de eventos de RISCO ELEVADISSIMO')
-        for index, eventPack in pairs(killerEvents) do
-            print(eventPack[1].EVENT_NAME)
-            
-            local function seeEventsArguments(showFullArguments)
-                print('[EVENT_LOGGER] getting arguments ' .. eventPack[1].EVENT_NAME)
-
-                for _, eventInfo in pairs(eventPack) do
-                    local arguments = eventInfo['DATA_ARGS']
-
-                    if not showFullArguments then
-                        arguments = trunkString(arguments)
-                    end
-
-                    print('[ARGS] ' .. arguments .. '\n[SOURCE_TARGET] ' .. eventInfo.SOURCE_TRIGGERED)
-                end
-
-            end
-
-            RegisterCommand('args', function(source, args)
-                if not hasPermission(source) then
-                    return
-                end
-
-                if args[1] then
-                    seeEventsArguments(true)
-                else
-                    seeEventsArguments(false)
-                end
-                print('/next - Para ir para o próximo evento')
-            end)
-            print('[EVENT_LOGGER] Para ver os argumentos desses eventos de forma mais detalhada:')
-            print('[EVENT_LOGGER] /args - para ver or argumentos limitados a 80 caracteres (para evitar spam)')
-            print('[EVENT_LOGGER] /args 1 - para ver os argumentos de forma completa (sem limite)')
-            print('[AVISO] Cuidado ao ativar a opção 1! Pode deixar a análise ilegível!')
-
+    RegisterCommand('args', function(source, args)
+        if not hasPermission(source) then return end
+        if not currentEventList or currentEventIndex > #currentEventList then
+            print('[EVENT_LOGGER] Nenhum evento selecionado. Use /result low/mid/high primeiro.')
+            return
         end
-        RegisterCommand('next', function(source, args)
-            print('Não tem mais eventos!')
-        end)
-    end
+        local eventPack = currentEventList[currentEventIndex]
+        seeEventsArguments(eventPack, args[1] ~= nil)
+        print('[AVISO] /next - Para ir para o próximo evento')
+    end)
+
+    RegisterCommand('next', function(source, args)
+        if not hasPermission(source) then return end
+        if not currentEventList then
+            print('[EVENT_LOGGER] Nenhuma lista de eventos ativa.')
+            return
+        end
+        currentEventIndex = currentEventIndex + 1
+        if currentEventIndex > #currentEventList then
+            print('[EVENT_LOGGER] Fim da lista de eventos!')
+            currentEventList = nil
+            return
+        end
+        showCurrentEvent()
+    end)
 
     RegisterCommand('result', function(source, args)
-        if not hasPermission(source) then
+        if not hasPermission(source) then return end
+
+        if args[1] == 'low' then
+            currentEventList = filterLoopedEvents(loopedEvents)
+            print('[EVENT_LOGGER] Lista de eventos de baixo risco')
+        elseif args[1] == 'mid' then
+            currentEventList = bigGlobalEvents
+            print('[EVENT_LOGGER] Lista de eventos de alto risco elevado')
+        elseif args[1] == 'high' then
+            currentEventList = killerEvents
+            print('[EVENT_LOGGER] Lista de eventos de RISCO ELEVADISSIMO')
+        else
+            print('/result low/mid/high')
             return
         end
 
-        if args[1] == 'low' then
-            listLowRiskEvents()
-        elseif args[1] == 'mid' then
-            listMidRiskEvents()
-        elseif args[1] == 'high' then
-            listHighRiskEvents()
-        else
-            print('/result low/mid/high')
+        currentEventIndex = 1
+        if #currentEventList == 0 then
+            print('[EVENT_LOGGER] Nenhum evento encontrado nessa categoria.')
+            currentEventList = nil
+            return
         end
-
+        showCurrentEvent()
     end)
 
     print('[EVENT_LOGGER] Para analisar quais são os eventos pesados:')
